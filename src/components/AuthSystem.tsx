@@ -38,6 +38,15 @@ export default function AuthSystem({ onLogin, users, onRegisterWithToken, settin
   // Error States
   const [error, setError] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const codeParam = params.get('code') || params.get('referral');
+    if (codeParam) {
+      setReferralCode(codeParam);
+      setAuthState('register');
+    }
+  }, []);
+
   // Dynamic user storage
   const [registeredUsers, setRegisteredUsers] = useState(() => {
     try {

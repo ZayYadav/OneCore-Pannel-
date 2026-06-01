@@ -20,12 +20,95 @@ class Api extends ResourceController
 
     public function __construct()
     {
+        // 1. Instantly detect and block SQL injection / malformed parameter triggers before processing
+        $this->detectAndPreventSqlInjection($this->request->getGet());
+        $this->detectAndPreventSqlInjection($this->request->getPost());
+        $this->detectAndPreventSqlInjection($this->request->getRawInput());
+        
         $this->checkAntiCloneProtection();
         $this->userModel = new UserModel();
         $this->licenseModel = new LicenseModel();
         $this->activationModel = new ActivationModel();
         $this->apiLogModel = new ApiLogModel();
         $this->securityLogModel = new SecurityLogModel();
+    }
+
+    /**
+     * INTRUSION DETECTION & SQL INJECTION SHIELD
+     * Analyzes incoming string properties for malicious sub-queries, comments, or logical bypass patterns.
+     */
+    private function detectAndPreventSqlInjection($data)
+    {
+        if (empty($data)) return;
+        
+        // Define dangerous patterns that hackers use for SQLi, tag injection, or logic cracks
+        $dangerousPatterns = [
+            '/union\s+select/i',
+            '/select\s+.*\s+from/i',
+            '/insert\s+into/i',
+            '/update\s+.*\s+set/i',
+            '/delete\s+from/i',
+            '/drop\s+table/i',
+            '/or\s+\d+\s*=\s*\d+/i',
+            '/or\s+\'\d+\'\s*=\s*\'\d+\'/i',
+            '/or\s+"[^"]*"\s*=\s*"[^"]*"/i',
+            '/char\(\d+\)/i',
+            '/--/',
+            '/\/\*/'
+        ];
+
+        $checkString = is_array($data) ? json_encode($data) : strval($data);
+        
+        foreach ($dangerousPatterns as $pattern) {
+            if (preg_match($pattern, $checkString)) {
+                $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+                $this->logToFile('SQL_INJECTION_ALERT', "🚨 Security Intrusion Prevented! Malicious payload blocked.", ['payload' => $data]);
+                
+                header('Content-Type: application/json; charset=UTF-8');
+                http_response_code(406); // Not Acceptable
+                echo json_encode([
+                    'status' => 'error',
+                    'error' => 'MALICIOUS_REQUEST_BLOCKED',
+                    'message' => '🚨 Intrusion Detection Shield: Potential security threat (SQL injection, logical bypass, or malformed payload) detected and logged! Your IP address (' . $ip . ') has been flagged to the system administrators.',
+                    'timestamp' => time(),
+                    'incident_id' => uniqid('INC-SEC-')
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                exit;
+            }
+        }
+    }
+
+    /**
+     * ADVANCED SYSTEM AES CRYPTOGRAPHY UTILITY
+     * Encrypts plain JSON strings to a secure Base64-enwrapped AES-256-CBC byte array.
+     */
+    private function encryptPayload($plainText, $encryptionKey)
+    {
+        $method = 'AES-256-CBC';
+        // Generate a cryptographically secure 16-byte random IV
+        $iv = openssl_random_pseudo_bytes(16);
+        // Ensure key is securely hashed to exactly 32 bytes (256-bit key)
+        $shaKey = hash('sha256', $encryptionKey, true);
+        
+        $encrypted = openssl_encrypt($plainText, $method, $shaKey, OPENSSL_RAW_DATA, $iv);
+        // Prepend binary IV to the encrypted stream, then Base64 encode for secure network transfer
+        return base64_encode($iv . $encrypted);
+    }
+
+    /**
+     * ADVANCED SYSTEM AES CRYPTOGRAPHY DECRYPTOR
+     */
+    private function decryptPayload($base64Data, $encryptionKey)
+    {
+        $method = 'AES-256-CBC';
+        $rawData = base64_decode($base64Data);
+        if (strlen($rawData) < 17) return null; // IV is 16 bytes
+        
+        $iv = substr($rawData, 0, 16);
+        $encrypted = substr($rawData, 16);
+        $shaKey = hash('sha256', $encryptionKey, true);
+        
+        return openssl_decrypt($encrypted, $method, $shaKey, OPENSSL_RAW_DATA, $iv);
     }
 
     /**
@@ -424,6 +507,163 @@ class Api extends ResourceController
 
         $this->logRequest(null, 'key/verify', 'POST', ['key' => $keyString], 200);
         return $this->respond($response);
+    }
+
+    /**
+     * POST /api/key/verify_secure
+     * HIGH-SECURITY ENCRYPTED API GATE:
+     * Accepts key_string and device_id. Automatically validates them and returns
+     * an AES-256-CBC encrypted output payload.
+     * Prevents packet sniffers (HttpCanary, Fiddler, Wireshark, Charles Proxy)
+     * from viewing or editing the success response.
+     */
+    public function verifyKeySecure()
+    {
+        $rules = [
+            'key_string' => 'required',
+            'device_id' => 'required'
+        ];
+
+        // Prepare key derivation secret
+        $secret = env('JWT_SECRET_KEY', 'SUPER_SECURE_RAINBOW_NEON_SECRET_UUID_STRING');
+
+        if (!$this->validate($rules)) {
+            $errResponse = json_encode([
+                'status' => 'error',
+                'error' => 'VALIDATION_FAILED',
+                'message' => 'Key and Device ID parameters are mandatory.'
+            ]);
+            $encVal = $this->encryptPayload($errResponse, $secret . '_error_bypass');
+            return $this->respond([
+                'status' => 'encrypted_validation_error',
+                'aes_payload' => $encVal,
+                'checksum' => hash_hmac('sha256', $encVal, $secret)
+            ], 400);
+        }
+
+        $keyString = $this->request->getVar('key_string');
+        $deviceId = $this->request->getVar('device_id');
+
+        // Dynamically derive a unique encryption key for this specific license, combined with the server's master secret.
+        // This ensures a cracker cannot use a cracked key file to decrypt other users' packets.
+        $derivedAesKey = hash_hmac('sha256', $keyString, $secret);
+
+        $license = $this->licenseModel->where('key_string', $keyString)->first();
+
+        // 1. Check if key exist
+        if (!$license) {
+            $msg = json_encode(['status' => 'error', 'verified' => false, 'error' => 'INVALID_KEY', 'message' => 'VIP License Key Code not registered.']);
+            return $this->respond([
+                'status' => 'encrypted',
+                'aes_payload' => $this->encryptPayload($msg, $derivedAesKey),
+                'checksum' => hash_hmac('sha256', $keyString . '_invalid', $secret),
+                'hint' => 'key_not_found'
+            ], 404);
+        }
+
+        // 2. Check suspended
+        if ($license['status'] === 'suspended') {
+            $msg = json_encode(['status' => 'error', 'verified' => false, 'error' => 'KEY_SUSPENDED', 'message' => 'This subscriber VIP key has been suspended.']);
+            return $this->respond([
+                'status' => 'encrypted',
+                'aes_payload' => $this->encryptPayload($msg, $derivedAesKey),
+                'checksum' => hash_hmac('sha256', $keyString . '_suspended', $secret),
+                'hint' => 'suspended'
+            ], 403);
+        }
+
+        // 3. Check expired
+        if ($license['expires_at'] && strtotime($license['expires_at']) < time()) {
+            $this->licenseModel->update($license['id'], ['status' => 'expired']);
+            $msg = json_encode(['status' => 'error', 'verified' => false, 'error' => 'KEY_EXPIRED', 'message' => 'This subscriber VIP license has expired.']);
+            return $this->respond([
+                'status' => 'encrypted',
+                'aes_payload' => $this->encryptPayload($msg, $derivedAesKey),
+                'checksum' => hash_hmac('sha256', $keyString . '_expired', $secret),
+                'hint' => 'expired'
+            ], 403);
+        }
+
+        // 4. Verify HWID Bind match
+        $activation = $this->activationModel->where('license_id', $license['id'])->where('hardware_id', $deviceId)->first();
+        if (!$activation) {
+            // Check if key is inactive so we can auto-bind it securely
+            if ($license['status'] === 'inactive' && $license['used_devices_count'] < $license['device_limit']) {
+                // Perform secure lazy auto-binding
+                $days = 0;
+                switch ($license['duration_type']) {
+                    case '1_day': $days = 1; break;
+                    case '7_days': $days = 7; break;
+                    case '15_days': $days = 15; break;
+                    case '30_days': $days = 30; break;
+                    case 'lifetime': $days = 9999; break;
+                    default: $days = 1;
+                }
+                $expiresAt = ($license['duration_type'] === 'lifetime') ? null : date('Y-m-d H:i:s', strtotime("+{$days} days"));
+                
+                $this->licenseModel->update($license['id'], [
+                    'status' => 'active',
+                    'expires_at' => $expiresAt,
+                    'used_devices_count' => $license['used_devices_count'] + 1
+                ]);
+
+                $this->activationModel->insert([
+                    'license_id' => $license['id'],
+                    'user_id' => $license['user_id'] ?? 1,
+                    'hardware_id' => $deviceId,
+                    'ip_address' => $this->request->getIPAddress()
+                ]);
+
+                // Update local model values
+                $license['status'] = 'active';
+                $license['expires_at'] = $expiresAt;
+                $license['used_devices_count'] += 1;
+            } else {
+                $msg = json_encode(['status' => 'error', 'verified' => false, 'error' => 'HWID_MISMATCH', 'message' => 'Device ID does not match registered license fingerprint lock. Please reset hardware lock.']);
+                return $this->respond([
+                    'status' => 'encrypted',
+                    'aes_payload' => $this->encryptPayload($msg, $derivedAesKey),
+                    'checksum' => hash_hmac('sha256', $keyString . '_hwid_mismatch', $secret),
+                    'hint' => 'hwid_mismatch'
+                ], 403);
+            }
+        }
+
+        // Create advanced digital signature to verify structural authenticity of decrypted data
+        $payloadToSign = $keyString . '|' . ($license['expires_at'] ?: 'lifetime') . '|' . $deviceId . '|active';
+        $antiTamperSignature = hash_hmac('sha256', $payloadToSign, $secret);
+
+        // Raw verified payload
+        $plainResponse = json_encode([
+            'status' => 'success',
+            'verified' => true,
+            'license_key' => $keyString,
+            'duration' => $license['duration_type'],
+            'expires_at' => $license['expires_at'] ?: 'N/A (Lifetime)',
+            'hwid_locked' => $deviceId,
+            'security_checksum' => $antiTamperSignature,
+            'timestamp' => time(),
+            'cheat_permissions' => [
+                'bypass_state' => 1,
+                'esp_enabled' => 1,
+                'aimbot_safetier' => 2,
+                'signature' => hash('sha256', $antiTamperSignature . '_validated_mem_block')
+            ]
+        ]);
+
+        $encryptedResponse = $this->encryptPayload($plainResponse, $derivedAesKey);
+        $finalChecksum = hash_hmac('sha256', $encryptedResponse, $secret);
+
+        $this->logToFile('VERIFY_SECURE_SUCCESS', "API Key Verified & Secure Packet Encrypted: {$keyString}");
+        $this->logRequest(null, 'key/verify_secure', 'POST', ['key' => $keyString], 200);
+
+        return $this->respond([
+            'status' => 'encrypted',
+            'aes_payload' => $encryptedResponse,
+            'checksum' => $finalChecksum,
+            'api_version' => 'v2.0_aes_secure',
+            'hint' => 'success'
+        ]);
     }
 
     /**

@@ -18,6 +18,7 @@ $routes->group('api', ['namespace' => 'App\Controllers'], function($routes) {
     // License verification, state validations, device binds
     $routes->post('key/activate', 'Api::activateKey');
     $routes->post('key/verify', 'Api::verifyKey');
+    $routes->post('key/verify_secure', 'Api::verifyKeySecure');
     $routes->post('device/reset', 'Api::resetDevice');
     
     // Profiles

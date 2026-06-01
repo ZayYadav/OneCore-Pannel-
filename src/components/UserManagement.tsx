@@ -9,6 +9,7 @@ interface UserManagementProps {
   onAdjustBalance: (id: string, amount: number) => void;
   onDeleteUser: (id: string) => void;
   currentUserRole: string;
+  onUpdateUser?: (updatedUser: User) => void;
 }
 
 export default function UserManagement({
@@ -17,12 +18,45 @@ export default function UserManagement({
   onUpdateUserStatus,
   onAdjustBalance,
   onDeleteUser,
-  currentUserRole
+  currentUserRole,
+  onUpdateUser
 }: UserManagementProps) {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+
+  // States for user profile editing
+  const [editUsername, setEditUsername] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editCountry, setEditCountry] = useState('India');
+  const [editRole, setEditRole] = useState<'super_admin' | 'owner' | 'admin' | 'reseller' | 'user'>('user');
+  const [editPanelExpiry, setEditPanelExpiry] = useState('');
+
+  const startEditing = (user: User) => {
+    setEditingUser(user);
+    setEditUsername(user.username);
+    setEditEmail(user.email);
+    setEditCountry(user.country || 'India');
+    setEditRole(user.role);
+    setEditPanelExpiry(user.panelExpiry || '');
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    if (onUpdateUser) {
+      onUpdateUser({
+        ...editingUser,
+        username: editUsername,
+        email: editEmail,
+        country: editCountry,
+        role: editRole,
+        panelExpiry: editPanelExpiry ? editPanelExpiry : undefined
+      });
+    }
+    setEditingUser(null);
+  };
 
   // States for new user forms
   const [newUsername, setNewUsername] = useState('');
@@ -294,6 +328,15 @@ export default function UserManagement({
                       </button>
                     )}
 
+                    {/* Edit Profile name & metrics */}
+                    <button
+                      onClick={() => startEditing(user)}
+                      className="p-1 py-1.5 bg-slate-950 hover:bg-purple-950/40 border border-slate-800 text-slate-400 hover:text-purple-400 rounded-lg transition"
+                      title="Edit Profile Names / Expiry"
+                    >
+                      <Edit className="w-3 h-3" />
+                    </button>
+
                     {/* Delete */}
                     <button
                       onClick={() => onDeleteUser(user.id)}
@@ -502,6 +545,16 @@ export default function UserManagement({
                         </button>
                       )}
 
+                      {/* Edit Profile name & metrics */}
+                      <button
+                        id={`edit-user-${user.id}`}
+                        onClick={() => startEditing(user)}
+                        className="p-1.5 bg-slate-900 hover:bg-purple-950/40 border border-slate-800 text-slate-400 hover:text-purple-400 rounded-lg transition"
+                        title="Edit Profile Names / Expiry"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+
                       {/* Delete */}
                       <button
                         id={`delete-user-${user.id}`}
@@ -622,6 +675,122 @@ export default function UserManagement({
                   className="py-2.5 px-4 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl text-xs font-semibold hover:brightness-110"
                 >
                   Register Account
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT USER PROFILE SCREEN */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-3xl overflow-hidden shadow-2xl relative">
+            <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse"></div>
+                <h4 className="font-bold text-slate-200">Edit Subscriber Profile</h4>
+              </div>
+              <button
+                id="close-edit-user-modal-btn"
+                onClick={() => setEditingUser(null)}
+                className="text-slate-500 hover:text-slate-300 font-bold text-lg"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-[10px] text-slate-500 uppercase font-semibold tracking-wider mb-1.5">Edit Username</label>
+                <input
+                  id="edit-user-username"
+                  type="text"
+                  required
+                  value={editUsername}
+                  onChange={(e) => setEditUsername(e.target.value)}
+                  className="w-full bg-slate-950 text-slate-200 p-2.5 rounded-xl text-xs border border-slate-800 focus:outline-none focus:border-purple-500 font-mono font-bold"
+                  placeholder="Username"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-slate-500 uppercase font-semibold tracking-wider mb-1.5">Edit Email Address</label>
+                <input
+                  id="edit-user-email"
+                  type="email"
+                  required
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  className="w-full bg-slate-950 text-slate-200 p-2.5 rounded-xl text-xs border border-slate-800 focus:outline-none focus:border-purple-500 font-mono"
+                  placeholder="user@rainbow.pro"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] text-slate-500 uppercase font-semibold tracking-wider mb-1.5">Geography Node</label>
+                  <input
+                    id="edit-user-country"
+                    type="text"
+                    required
+                    value={editCountry}
+                    onChange={(e) => setEditCountry(e.target.value)}
+                    className="w-full bg-slate-950 text-slate-200 p-2.5 rounded-xl text-xs border border-slate-800 focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-slate-500 uppercase font-semibold tracking-wider mb-1.5">Panel Expiration Date</label>
+                  <input
+                    id="edit-user-expiry"
+                    type="text"
+                    value={editPanelExpiry}
+                    onChange={(e) => setEditPanelExpiry(e.target.value)}
+                    className="w-full bg-slate-950 text-slate-200 p-2.5 rounded-xl text-xs border border-slate-800 focus:outline-none focus:border-purple-500 font-mono"
+                    placeholder="e.g. 2026-12-31"
+                  />
+                  <span className="text-[9px] text-slate-550 block mt-1 font-sans">Format: YYYY-MM-DD or string</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-slate-500 uppercase font-semibold tracking-wider mb-1.5">Subscriber Security Tier</label>
+                <select
+                  id="edit-user-role-select"
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value as any)}
+                  className="w-full bg-slate-950 text-slate-400 p-2.5 rounded-xl text-xs border border-slate-800 focus:outline-none focus:text-slate-200"
+                >
+                  <option value="user">VIP Subscriber (Tier 4)</option>
+                  <option value="reseller">Reseller Dealer (Tier 3)</option>
+                  {(currentUserRole === 'super_admin' || currentUserRole === 'owner') && (
+                    <option value="admin">System Admin (Tier 2)</option>
+                  )}
+                  {currentUserRole === 'super_admin' && (
+                    <>
+                      <option value="owner">Tenant Owner (Tier 1.5)</option>
+                      <option value="super_admin">Super Master (Tier 1)</option>
+                    </>
+                  )}
+                </select>
+              </div>
+
+              <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-800/40">
+                <button
+                  id="cancel-edit-user-btn"
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="py-2.5 px-4 bg-slate-950 text-slate-400 hover:text-white rounded-xl text-xs font-semibold hover:bg-slate-800 border border-slate-800 transition-all duration-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  id="submit-edit-user-btn"
+                  type="submit"
+                  className="py-2.5 px-5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:brightness-110 shadow-lg shadow-purple-950/20 transition-all duration-300 active:scale-[0.98]"
+                >
+                  Save Profile Changes
                 </button>
               </div>
             </form>

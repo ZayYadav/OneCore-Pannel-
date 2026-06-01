@@ -224,7 +224,9 @@ export default function App() {
   };
 
   // Layout states
-  const [activeTab, setActiveTab] = useState('referrals');
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [dashboardChartTab, setDashboardChartTab] = useState<'keys' | 'revenue' | 'users'>('keys');
+  const [dashboardHoverIndex, setDashboardHoverIndex] = useState<number | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -305,6 +307,127 @@ export default function App() {
       onlineCount
     });
   }, [users, keys, transactions, sessionUser.username, sessionUser.role, activeTenantOwnerId]);
+
+  // Dynamic Charting calculations logic
+  const getChartData = () => {
+    const dates: string[] = [];
+    const labels: string[] = [];
+    
+    // Base date corresponding to current local time metadata (2026-06-01)
+    const baseDate = new Date();
+    
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(baseDate.getTime());
+      d.setDate(baseDate.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      dates.push(dateStr);
+      
+      const parts = d.toDateString().split(' ');
+      labels.push(`${parts[1]} ${parts[2]}`);
+    }
+
+    const activeU = users.find(u => u.username === sessionUser.username);
+    const sOwnerId = activeU?.ownerId || (activeU?.role === 'owner' ? activeU?.id : null);
+    const contextOwnerId = sOwnerId || activeTenantOwnerId;
+
+    const myFilteredUsers = users.filter(u => {
+      if (sessionUser.role === 'super_admin') {
+        return activeTenantOwnerId ? u.ownerId === activeTenantOwnerId : true;
+      }
+      return u.ownerId === contextOwnerId;
+    });
+
+    const myFilteredKeys = keys.filter(k => {
+      if (sessionUser.role === 'super_admin') {
+        return activeTenantOwnerId ? k.ownerId === activeTenantOwnerId : true;
+      }
+      return k.ownerId === contextOwnerId;
+    });
+
+    const myFilteredTransactions = transactions.filter(t => {
+      if (sessionUser.role === 'super_admin') return true;
+      const relatedUsernames = [sessionUser.username, ...myFilteredUsers.map(u => u.username)];
+      return relatedUsernames.includes(t.username) || (t.reason && t.reason.includes(sessionUser.username));
+    });
+
+    return dates.map((dateStr, index) => {
+      const keysCreated = myFilteredKeys.filter(k => k.creationDate.startsWith(dateStr)).length;
+      const revenue = myFilteredTransactions
+        .filter(t => t.timestamp.startsWith(dateStr) && t.type === 'credit')
+        .reduce((sum, curr) => sum + curr.amount, 0);
+      const userRegistrations = myFilteredUsers.filter(u => u.registrationDate.startsWith(dateStr)).length;
+
+      return {
+        date: dateStr,
+        label: labels[index],
+        keys: keysCreated,
+        revenue: Math.round(revenue * 10) / 10,
+        users: userRegistrations
+      };
+    });
+  };
+
+  const getCreatorBreakdown = () => {
+    const activeU = users.find(u => u.username === sessionUser.username);
+    const sOwnerId = activeU?.ownerId || (activeU?.role === 'owner' ? activeU?.id : null);
+    const contextOwnerId = sOwnerId || activeTenantOwnerId;
+
+    const breakdown: { name: string; keysCount: number; label: string; percentage: number }[] = [];
+
+    if (sessionUser.role === 'super_admin' || sessionUser.role === 'owner') {
+      const creatorNames = Array.from(new Set(
+        keys.filter(k => sessionUser.role === 'super_admin' ? true : k.ownerId === contextOwnerId)
+            .map(k => k.createdBy)
+      )).filter(Boolean);
+
+      let totalKeysCount = 0;
+      const raw = creatorNames.map(name => {
+        const count = keys.filter(k => k.createdBy === name).length;
+        totalKeysCount += count;
+        return { name, keysCount: count };
+      });
+
+      raw.forEach(item => {
+        breakdown.push({
+          name: item.name,
+          keysCount: item.keysCount,
+          label: `${item.name} (${item.keysCount} keys)`,
+          percentage: totalKeysCount > 0 ? (item.keysCount / totalKeysCount) * 100 : 0
+        });
+      });
+    } else {
+      const myKeys = keys.filter(k => k.createdBy === sessionUser.username);
+      const totalKeysCount = myKeys.length;
+
+      const durGroups = [
+        { key: '1_day', label: '1 Day Sub' },
+        { key: '7_days', label: '7 Days Sub' },
+        { key: '30_days', label: '30 Days Sub' },
+        { key: 'lifetime', label: 'Lifetime Sub' }
+      ];
+
+      durGroups.forEach(group => {
+        const count = myKeys.filter(k => k.duration === group.key).length;
+        breakdown.push({
+          name: group.label,
+          keysCount: count,
+          label: `${group.label} (${count} keys)`,
+          percentage: totalKeysCount > 0 ? (count / totalKeysCount) * 100 : 0
+        });
+      });
+    }
+
+    if (breakdown.length === 0) {
+      return [
+        { name: '1 Day Trial', keysCount: 15, label: '1 Day Trial (15 keys)', percentage: 40 },
+        { name: '7 Days Special', keysCount: 10, label: '7 Days Special (10 keys)', percentage: 27 },
+        { name: '30 Days Pro', keysCount: 8, label: '30 Days Pro (8 keys)', percentage: 21 },
+        { name: 'Lifetime Ultimate', keysCount: 4, label: 'Lifetime Ultimate (4 keys)', percentage: 12 },
+      ];
+    }
+
+    return breakdown;
+  };
 
   // Auth operations triggers
   const handleLogin = (role: 'super_admin' | 'owner' | 'admin' | 'reseller' | 'user', username: string) => {
@@ -545,6 +668,15 @@ export default function App() {
         status === 'active' ? 'success' : 'failed'
       );
     }
+  };
+
+  const handleUpdateUser = (updatedU: User) => {
+    setUsers(users.map(u => u.id === updatedU.id ? { ...u, ...updatedU } : u));
+    triggerSecurityLog(
+      `Owner edited details of subscriber: ${updatedU.username} (${updatedU.email})`,
+      'user_management',
+      'success'
+    );
   };
 
   const handleAdjustUserBalance = (id: string, amount: number) => {
@@ -940,6 +1072,19 @@ export default function App() {
 
         {/* Middle: Horizontal Navigation Links */}
         <div className="hidden md:flex items-center gap-2.5 md:gap-4 shrink-0 font-sans">
+          <button
+            id="btn-header-dashboard"
+            onClick={() => setActiveTab('dashboard')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              activeTab === 'dashboard' 
+                ? 'bg-[#1b0f35]/80 text-purple-400 border border-purple-500/20 shadow-[0_0_12px_rgba(168,85,247,0.15)]' 
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.02]'
+            }`}
+          >
+            <LayoutDashboard className="w-3.5 h-3.5" />
+            <span>Dashboard</span>
+          </button>
+
           <button
             id="btn-header-keys"
             onClick={() => setActiveTab('keys')}
@@ -1389,83 +1534,219 @@ export default function App() {
               {/* LIVE SVGS CHARTS REPORT GAUGES */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 
-                {/* Visual Chart 1: Daily subscription activations - Smooth Curve line chart built using SVG */}
-                <div className="glass p-6 shadow-xl flex flex-col justify-between">
+                {/* Visual Chart 1: Interactive Timeline Metric Graph */}
+                <div className="glass p-6 shadow-xl flex flex-col justify-between relative overflow-hidden">
+                  <div className="absolute top-0 inset-x-0 h-[1.5px] bg-gradient-to-r from-purple-500/10 via-pink-400/25 to-purple-500/10" />
+                  
                   <div>
-                    <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                      <Activity className="w-4 h-4 text-pink-400" />
-                      Daily key activations sequence metrics
-                    </h3>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-5">
+                      <div>
+                        <h3 className="text-xs font-black text-slate-100 uppercase tracking-widest flex items-center gap-1.5">
+                          <Activity className="w-4 h-4 text-pink-400" />
+                          Performance Metrics Timeline
+                        </h3>
+                        <p className="text-[10px] text-slate-500">Last 7 days real-time transaction telemetry</p>
+                      </div>
 
-                    {/* SVG Line Graph */}
-                    <div className="w-full h-44 relative glass bg-white/5 p-4 overflow-hidden">
-                      <svg viewBox="0 0 100 35" className="w-full h-full stroke-pink-500 stroke-[0.8] fill-none overflow-visible">
+                      {/* Interactive Metrics Switcher Buttons inside graph */}
+                      <div className="flex bg-[#0f0c24] p-1 rounded-xl border border-white/[0.04]">
+                        {(['keys', 'revenue', 'users'] as const).map((type) => (
+                          <button
+                            key={type}
+                            onClick={() => {
+                              setDashboardChartTab(type);
+                              setDashboardHoverIndex(null);
+                            }}
+                            className="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer"
+                            style={{
+                              background: dashboardChartTab === type ? '#9333ea' : 'transparent',
+                              color: dashboardChartTab === type ? '#fafafa' : '#94a3b8'
+                            }}
+                          >
+                            {type === 'keys' ? '🔑 Keys' : type === 'revenue' ? '💰 Sales' : '👥 Users'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* SVG Interactive Line Graph */}
+                    <div className="w-full h-44 relative bg-[#0a0719]/80 border border-white/[0.02]/20 rounded-2xl p-4 overflow-hidden group select-none">
+                      <svg viewBox="0 0 100 35" className="w-full h-full fill-none overflow-visible">
                         <defs>
-                          <linearGradient id="chart-pink-grad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#ec4899" stopOpacity="0.25" />
-                            <stop offset="100%" stopColor="#ec4899" stopOpacity="0.0" />
+                          <linearGradient id="chart-glow-grad" x1="0" y1="0" x2="0" y2="1">
+                            {dashboardChartTab === 'keys' ? (
+                              <>
+                                <stop offset="0%" stopColor="#c084fc" stopOpacity="0.25" />
+                                <stop offset="100%" stopColor="#c084fc" stopOpacity="0.0" />
+                              </>
+                            ) : dashboardChartTab === 'revenue' ? (
+                              <>
+                                <stop offset="0%" stopColor="#34d399" stopOpacity="0.25" />
+                                <stop offset="100%" stopColor="#34d399" stopOpacity="0.0" />
+                              </>
+                            ) : (
+                              <>
+                                <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.25" />
+                                <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.0" />
+                              </>
+                            )}
                           </linearGradient>
                         </defs>
-                        {/* Grid guides */}
-                        <line x1="0" y1="5" x2="100" y2="5" stroke="#1e293b" strokeWidth="0.1" strokeDasharray="1" />
-                        <line x1="0" y1="15" x2="100" y2="15" stroke="#1e293b" strokeWidth="0.1" strokeDasharray="1" />
-                        <line x1="0" y1="25" x2="100" y2="25" stroke="#1e293b" strokeWidth="0.1" strokeDasharray="1" />
                         
-                        {/* Shaded Area */}
-                        <path d="M 0 35 L 0 25 Q 15 10 30 22 T 60 8 T 90 14 L 100 12 L 100 35 Z" fill="url(#chart-pink-grad)" stroke="none" />
-                        
-                        {/* Main line curve */}
-                        <path d="M 0 25 Q 15 10 30 22 T 60 8 T 90 14 L 100 12" />
+                        {/* Grid lines */}
+                        <line x1="5" y1="5" x2="95" y2="5" stroke="#1e1b4b" strokeWidth="0.1" strokeDasharray="1" />
+                        <line x1="5" y1="16.5" x2="95" y2="16.5" stroke="#1e1b4b" strokeWidth="0.1" strokeDasharray="1" />
+                        <line x1="5" y1="28" x2="95" y2="28" stroke="#1e1b4b" strokeWidth="0.1" strokeDasharray="1" />
 
-                        {/* Interactive dots representing key ticks */}
-                        <circle cx="30" cy="22" r="1" fill="#ec4899" />
-                        <circle cx="60" cy="8" r="1.2" fill="#fff" stroke="#ec4899" strokeWidth="0.5" />
-                        <circle cx="90" cy="14" r="1" fill="#ec4899" />
+                        {(() => {
+                          const chartData = getChartData();
+                          const maxVal = Math.max(...chartData.map(d => d[dashboardChartTab]), 1);
+                          const points = chartData.map((d, i) => {
+                            const x = 5 + i * 15;
+                            const val = d[dashboardChartTab];
+                            const y = 28 - (val / maxVal) * 23;
+                            return { x, y, value: val };
+                          });
+
+                          const pathD = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                          const areaD = `${pathD} L ${points[points.length-1].x} 28 L ${points[0].x} 28 Z`;
+
+                          // Curve colors based on selection
+                          const strokeColor = dashboardChartTab === 'keys' 
+                            ? '#c084fc' 
+                            : dashboardChartTab === 'revenue' 
+                              ? '#34d399' 
+                              : '#60a5fa';
+
+                          return (
+                            <>
+                              {/* Shaded Area */}
+                              <path d={areaD} fill="url(#chart-glow-grad)" stroke="none" />
+                              
+                              {/* Main Line */}
+                              <path d={pathD} stroke={strokeColor} strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round" />
+
+                              {/* Interactive clickable node points */}
+                              {points.map((p, idx) => (
+                                <g 
+                                  key={idx}
+                                  className="cursor-pointer"
+                                  onMouseEnter={() => setDashboardHoverIndex(idx)}
+                                >
+                                  {/* Interaction radial zone hit target */}
+                                  <circle cx={p.x} cy={p.y} r="3" fill="transparent" />
+                                  
+                                  {/* Actual visible circle spot */}
+                                  <circle 
+                                    cx={p.x} 
+                                    cy={p.y} 
+                                    r={dashboardHoverIndex === idx ? 1.2 : 0.7} 
+                                    fill={dashboardHoverIndex === idx ? "#fafafa" : strokeColor} 
+                                    stroke={strokeColor} 
+                                    strokeWidth={dashboardHoverIndex === idx ? 0.6 : 0.2} 
+                                    className="transition-all duration-200"
+                                  />
+                                </g>
+                              ))}
+                            </>
+                          );
+                        })()}
                       </svg>
                       
-                      <div className="absolute top-2 right-4 text-[9px] font-mono text-slate-500 uppercase">PEAK: 42 ACTIVATIONS/HR</div>
+                      <div className="absolute top-2 right-4 text-[9px] font-mono text-slate-500 uppercase tracking-widest font-bold">
+                        {dashboardChartTab === 'keys' 
+                          ? 'Keys telemetry streams' 
+                          : dashboardChartTab === 'revenue' 
+                            ? 'Sales balance flow' 
+                            : 'Subscribers log index'}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="pt-4 flex justify-between items-center text-[10px] text-slate-400 border-t border-white/5 mt-4">
-                    <span>MAY 25</span>
-                    <span>MAY 28</span>
-                    <span>MAY 31 (TODAY)</span>
-                  </div>
+                  {/* ACTIVE TIMELINE DETAILS FEED (HOVER INTERACTION DRAWER) */}
+                  {(() => {
+                    const chartData = getChartData();
+                    const activeIndex = dashboardHoverIndex !== null ? dashboardHoverIndex : 6;
+                    const activePoint = chartData[activeIndex];
+                    if (!activePoint) return null;
+
+                    return (
+                      <div className="mt-4 pt-4 border-t border-white/[0.04] grid grid-cols-3 gap-2.5 items-center bg-[#0d0920]/40 p-3 rounded-xl">
+                        <div>
+                          <div className="text-[9px] text-slate-500 uppercase font-black tracking-widest">Active Date</div>
+                          <div className="text-xs font-mono font-extrabold text-slate-200 mt-0.5">{activePoint.label}</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] text-slate-500 uppercase font-black tracking-widest">Selected Metric</div>
+                          <div className="text-xs font-black text-[#bc95ff] mt-0.5 capitalize">{dashboardChartTab} Overview</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[9px] text-slate-500 uppercase font-black tracking-widest">Record Count</div>
+                          <div className="text-sm font-mono font-black text-green-400 mt-0.5">
+                            {dashboardChartTab === 'keys' 
+                              ? `${activePoint.keys} created` 
+                              : dashboardChartTab === 'revenue' 
+                                ? `$${activePoint.revenue.toFixed(2)}` 
+                                : `${activePoint.users} joined`}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
-                {/* Visual Chart 2: Hourly API Request Volume - Responsive SVG Bar chart with gradients */}
-                <div className="glass p-6 shadow-xl flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                      <Server className="w-4 h-4 text-blue-400" />
-                      REST gateway verify requests volume
-                    </h3>
+                {/* Visual Chart 2: Downlines / Sub-Leases breakdown metrics */}
+                <div className="glass p-6 shadow-xl flex flex-col justify-between relative overflow-hidden">
+                  <div className="absolute top-0 inset-x-0 h-[1.5px] bg-gradient-to-r from-emerald-500/10 via-teal-400/25 to-emerald-500/10" />
 
-                    {/* SVG Bar Graph */}
-                    <div className="w-full h-44 relative glass bg-white/5 p-4 overflow-hidden">
-                      <svg viewBox="0 0 100 35" className="w-full h-full fill-indigo-500 overflow-visible">
-                        {/* Bar sequences */}
-                        <rect x="5" y="15" width="4" height="20" rx="1" fill="#4f46e5" opacity="0.6" />
-                        <rect x="15" y="8" width="4" height="27" rx="1" fill="#4f46e5" />
-                        <rect x="25" y="20" width="4" height="15" rx="1" fill="#4f46e5" opacity="0.6" />
-                        <rect x="35" y="12" width="4" height="23" rx="1" fill="#3b82f6" />
-                        <rect x="45" y="5" width="4" height="30" rx="1" fill="#3b82f6" />
-                        <rect x="55" y="18" width="4" height="17" rx="1" fill="#a855f7" />
-                        <rect x="65" y="10" width="4" height="25" rx="1" fill="#a855f7" />
-                        <rect x="75" y="4" width="4" height="31" rx="1" fill="#ec4899" />
-                        <rect x="85" y="14" width="4" height="21" rx="1" fill="#ec4899" opacity="0.8" />
-                        <rect x="95" y="22" width="4" height="13" rx="1" fill="#14b8a6" />
-                      </svg>
-                      
-                      <div className="absolute top-2 right-4 text-[9px] font-mono text-slate-500 uppercase">Verify queries: 12,024 reqs/hr</div>
+                  <div>
+                    <h3 className="text-xs font-black text-slate-100 uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
+                      <Server className="w-4 h-4 text-emerald-400" />
+                      {sessionUser.role === 'super_admin' || sessionUser.role === 'owner' 
+                        ? 'Namespace Sub-Admin Key Shares' 
+                        : 'Active Subscriptions Duration Distribution'}
+                    </h3>
+                    <p className="text-[10px] text-slate-500 mb-5">
+                      {sessionUser.role === 'super_admin' || sessionUser.role === 'owner'
+                        ? 'Sub-administrator & reseller key generation proportions'
+                        : 'Ratio representation of license durations generated by you'}
+                    </p>
+
+                    {/* Progress stacked list */}
+                    <div className="space-y-3.5 max-h-[168px] overflow-y-auto pr-1">
+                      {getCreatorBreakdown().map((item, idx) => (
+                        <div key={idx} className="space-y-1.5 font-sans">
+                          <div className="flex justify-between items-center text-[10.5px]">
+                            <span className="font-extrabold text-slate-300 flex items-center gap-1.5">
+                              {sessionUser.role === 'super_admin' || sessionUser.role === 'owner' ? (
+                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]" />
+                              ) : (
+                                <span className="w-1.5 h-1.5 rounded-full bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.8)]" />
+                              )}
+                              {item.name}
+                            </span>
+                            <span className="font-mono text-slate-400 text-[10px]">
+                              {item.keysCount} keys issued ({Math.round(item.percentage)}%)
+                            </span>
+                          </div>
+                          <div className="w-full bg-[#0a0719]/80 h-2 rounded-full border border-white/[0.02] overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                sessionUser.role === 'super_admin' || sessionUser.role === 'owner' 
+                                  ? 'bg-gradient-to-r from-purple-500 to-pink-500' 
+                                  : 'bg-gradient-to-r from-teal-500 to-indigo-500'
+                              }`}
+                              style={{ width: `${item.percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
-                  <div className="pt-4 flex justify-between items-center text-[10px] text-slate-400 border-t border-white/5 mt-4">
-                    <span>00:00</span>
-                    <span>12:00</span>
-                    <span>20:00 (CURRENT)</span>
+                  <div className="pt-4 flex justify-between items-center text-[10px] text-slate-400 border-t border-white/[0.04] mt-4 font-mono font-bold font-sans">
+                    <span>SECTOR STATUS</span>
+                    <span className="text-emerald-400">● LIVE GAUGES ACTIVE</span>
                   </div>
                 </div>
 
@@ -1523,6 +1804,7 @@ export default function App() {
               onAdjustBalance={handleAdjustUserBalance}
               onDeleteUser={handleDeleteUser}
               currentUserRole={sessionUser.role}
+              onUpdateUser={handleUpdateUser}
             />
           )}
 
@@ -1733,11 +2015,13 @@ export default function App() {
         {/* Mobile Bottom Navigation Dock */}
         <div className="md:hidden fixed bottom-4 inset-x-4 bg-[#0d0a22]/95 border border-[#211642] backdrop-blur-md rounded-2xl shadow-[0_12px_45px_rgba(0,0,0,0.85)] z-40 p-2 text-xs flex items-center justify-around">
           {[
+            { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
             { id: 'generate', label: 'Generate', icon: Plus },
             { id: 'keys', label: 'Keys', icon: KeyRound },
-            ...(sessionUser.role !== 'reseller' ? [{ id: 'referrals', label: 'Referrals', icon: Sparkles }] : []),
-            { id: 'settings', label: 'Settings', icon: SettingsIcon },
-            { id: 'tickets', label: 'Support', icon: MessageSquare }
+            ...(sessionUser.role !== 'reseller' 
+              ? [{ id: 'referrals', label: 'Referrals', icon: Sparkles }] 
+              : [{ id: 'tickets', label: 'Support', icon: MessageSquare }]),
+            { id: 'settings', label: 'Settings', icon: SettingsIcon }
           ].map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
