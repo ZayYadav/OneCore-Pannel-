@@ -1,0 +1,1 @@
+# This file ensures that the writable/logs directory is preserved in the folder structure so that CodeIgniter and virtual hosts have immediate write permissions.

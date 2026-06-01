@@ -40,7 +40,7 @@ export default function ErrorLogConsole({ onAddAuditLog }: ErrorLogConsoleProps)
       level: 'ERROR',
       category: 'JWT',
       message: '❌ JWT_SECRET_KEY key derivation warning. Falling back to DEFAULT safe key string!',
-      details: 'Warning: env("JWT_SECRET_KEY") is empty or not loaded. System used default SUPER_SECURE_RAINBOW_NEON_SECRET_UUID_STRING.',
+      details: 'Warning: env("JWT_SECRET_KEY") is empty or not loaded. System used default RAINBOW_SECURE_KEY_b8d3f1a26d9c4e7fb60718293c4e5a6f2b1d0c4d8e7a6f5b3c2e1d0f5c9e1b2a.',
       solution: 'Add JWT_SECRET_KEY = "your_secret_random_strong_key_here" in your .env file and RESTART your PHP/CodeIgniter node.',
     }
   ]);
@@ -217,7 +217,7 @@ export default function ErrorLogConsole({ onAddAuditLog }: ErrorLogConsoleProps)
             {activeFAQ === 'jwt' && (
               <div className="space-y-3">
                 <h4 className="text-slate-200 font-extrabold uppercase tracking-wide text-xs flex items-center gap-2 text-purple-400">
-                  <span>❓ JWT_SECRET_KEY = "SUPER_SECURE_RAINBOW_NEON_SECRET_UUID_STRING" isme kya daale?</span>
+                  <span>❓ JWT_SECRET_KEY = "RAINBOW_SECURE_KEY_b8d3f1a2..." isme kya daale?</span>
                 </h4>
                 <p className="text-slate-300">
                   <strong className="text-white">JWT_SECRET_KEY</strong> aapke server ka ek <strong className="text-purple-400">Private Cryptographic Signature Key</strong> hai. Isme aap koi bhi secure, unpredictable aur random text string daal sakte hain (jaise aapka koi personal unique password ya complex UUID token string).

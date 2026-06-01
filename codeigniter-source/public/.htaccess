@@ -1,0 +1,34 @@
+# ====================================================================
+# RAINBOW VIP PANEL PRO - APACHE ROUTING CONTROLS (.htaccess)
+# ====================================================================
+# This file guarantees that any incoming API activation handshake or
+# license verification URL maps smoothly to CodeIgniter's front controller.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Redirect Trailing Slashes If Not A Folder...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} (.+)/$
+    RewriteRule ^ %1 [L,R=301]
+
+    # Handle Front Controller...
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php/$1 [L]
+</IfModule>
+
+<IfModule !mod_rewrite.c>
+    # Fallback to standard error routing if Apache mod_rewrite is inactive
+    ErrorDocument 404 /index.php
+</IfModule>
+
+# Prevent directory index listing for severe server hardening
+Options -Indexes
+
+# Block sensitive backups and configuration access
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>

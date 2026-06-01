@@ -191,7 +191,7 @@ class Api extends ResourceController
         try {
             $logDir = WRITEPATH . 'logs/';
             if (!is_dir($logDir)) {
-                mkdir($logDir, 0755, true);
+                @mkdir($logDir, 0777, true);
             }
             $logFile = $logDir . 'vip_panel_debug.log';
             $timestamp = date('Y-m-d H:i:s');
@@ -199,9 +199,23 @@ class Api extends ResourceController
             $userAgent = $this->request->getUserAgent()->getAgentString();
             $extraString = !empty($extra) ? ' | Details: ' . json_encode($extra, JSON_UNESCAPED_SLASHES) : '';
             $logLine = "[{$timestamp}] [IP: {$ip}] [AGENT: {$userAgent}] [{$status}] {$message}{$extraString}" . PHP_EOL;
-            file_put_contents($logFile, $logLine, FILE_APPEND | LOCK_EX);
+            
+            if (@file_put_contents($logFile, $logLine, FILE_APPEND | LOCK_EX) === false) {
+                throw new \Exception("Primary write failed");
+            }
         } catch (\Exception $e) {
-            // Fail-safe to avoid blocking operation if log files are non-writable
+            // Backup Fallback: Try writing directly to the relative project root folder
+            try {
+                $backupFile = FCPATH . '../vip_panel_debug.log';
+                $timestamp = date('Y-m-d H:i:s');
+                $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+                $extraString = !empty($extra) ? ' | Details: ' . json_encode($extra, JSON_UNESCAPED_SLASHES) : '';
+                $logLine = "[{$timestamp}] [IP: {$ip}] [BACKUP_LOG] [{$status}] {$message}{$extraString}" . PHP_EOL;
+                @file_put_contents($backupFile, $logLine, FILE_APPEND | LOCK_EX);
+            } catch (\Exception $e2) {
+                // absolute fallback: write directly to the web server's core error logs
+                error_log("VIP_PANEL_DEBUG [{$status}]: {$message}. Extra: " . json_encode($extra));
+            }
         }
     }
 
@@ -486,7 +500,7 @@ class Api extends ResourceController
         // Even if custom tools (like HTTP Canary or Packet Filters) try to intercept and modify
         // 'verified' to true or edit the response in memory (Game Guardian), the corresponding client
         // signature check will fail immediately as they cannot replicate the secret server signature key.
-        $secret = env('JWT_SECRET_KEY', 'SUPER_SECURE_RAINBOW_NEON_SECRET_UUID_STRING');
+        $secret = env('JWT_SECRET_KEY', 'RAINBOW_SECURE_KEY_b8d3f1a26d9c4e7fb60718293c4e5a6f2b1d0c4d8e7a6f5b3c2e1d0f5c9e1b2a');
         $payloadToSign = $keyString . '|' . ($license['expires_at'] ?: 'lifetime') . '|' . $deviceId . '|active';
         $antiTamperSignature = hash_hmac('sha256', $payloadToSign, $secret);
 
@@ -525,7 +539,7 @@ class Api extends ResourceController
         ];
 
         // Prepare key derivation secret
-        $secret = env('JWT_SECRET_KEY', 'SUPER_SECURE_RAINBOW_NEON_SECRET_UUID_STRING');
+        $secret = env('JWT_SECRET_KEY', 'RAINBOW_SECURE_KEY_b8d3f1a26d9c4e7fb60718293c4e5a6f2b1d0c4d8e7a6f5b3c2e1d0f5c9e1b2a');
 
         if (!$this->validate($rules)) {
             $errResponse = json_encode([

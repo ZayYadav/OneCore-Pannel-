@@ -81,17 +81,24 @@ class Database extends Config
         parent::__construct();
 
         // Automatic fallback detection: Environment variables override hardcoded credentials if they exist
-        if (getenv('database.default.username')) {
-            $this->default['username'] = getenv('database.default.username');
+        $dbUsername = env('database.default.username') ?: getenv('database.default.username') ?: ($_ENV['database.default.username'] ?? null);
+        if ($dbUsername) {
+            $this->default['username'] = $dbUsername;
         }
-        if (getenv('database.default.password')) {
-            $this->default['password'] = getenv('database.default.password');
+
+        $dbPassword = env('database.default.password') ?: getenv('database.default.password') ?: ($_ENV['database.default.password'] ?? null);
+        if ($dbPassword !== null) {
+            $this->default['password'] = $dbPassword;
         }
-        if (getenv('database.default.database')) {
-            $this->default['database'] = getenv('database.default.database');
+
+        $dbDatabase = env('database.default.database') ?: getenv('database.default.database') ?: ($_ENV['database.default.database'] ?? null);
+        if ($dbDatabase) {
+            $this->default['database'] = $dbDatabase;
         }
-        if (getenv('database.default.hostname')) {
-            $this->default['hostname'] = getenv('database.default.hostname');
+
+        $dbHostname = env('database.default.hostname') ?: getenv('database.default.hostname') ?: ($_ENV['database.default.hostname'] ?? null);
+        if ($dbHostname) {
+            $this->default['hostname'] = $dbHostname;
         }
     }
 }

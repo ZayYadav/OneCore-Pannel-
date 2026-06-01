@@ -1,0 +1,40 @@
+# ====================================================================
+# RAINBOW VIP PANEL PRO - APACHE ROOT ROUTING FALLBACK (.htaccess)
+# ====================================================================
+# This ruleset ensures that if the system runs directly from your root
+# directory, index.php routes queries gracefully.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Redirect Trailing Slashes If Not A Folder...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} (.+)/$
+    RewriteRule ^ %1 [L,R=301]
+
+    # Handle Front Controller...
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php/$1 [L]
+</IfModule>
+
+<IfModule !mod_rewrite.c>
+    # Fallback to standard error routing
+    ErrorDocument 404 /index.php
+</IfModule>
+
+# Block Directory Indexes
+Options -Indexes
+
+# Block sensitive setups
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Block composer and raw schema files from web access
+<FilesMatch "^(composer\.json|composer\.lock|schema\.sql|install_guide\.md)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>

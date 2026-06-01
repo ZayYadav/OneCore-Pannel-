@@ -19,7 +19,10 @@ export default function SourceConnector({ settings, activeTenantOwnerId, onClose
 
   const brandName = settings.brandName || 'OneBox';
   const brandLower = brandName.toLowerCase();
-  const gatewayUrl = `https://${brandLower}-gate.rainbow.pro/api/v1`;
+  
+  // Choose dynamically depending on current origin to ensure seamless local/cpanel hosting
+  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  const gatewayUrl = currentOrigin ? `${currentOrigin}/api` : `https://onecorepanel.parallaxserver.online/api`;
   const resolvedTenantId = activeTenantOwnerId || 'owner_ravi';
 
   // Add initial logs

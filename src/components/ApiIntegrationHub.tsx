@@ -16,7 +16,10 @@ export default function ApiIntegrationHub({ settings }: ApiIntegrationHubProps) 
 
   const brandName = settings?.brandName || 'OneBox';
   const brandLower = brandName.toLowerCase();
-  const apiHostUrl = `https://${brandLower}-gate.rainbow.pro/api`;
+  
+  // Use the current domain as the default provider for dynamic live integration
+  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  const apiHostUrl = currentOrigin ? `${currentOrigin}/api` : `https://onecorepanel.parallaxserver.online/api`;
 
   const cppCode = `// ${brandName} High-Security Verification - C++ ImGui Injector
 // Integrates client-side AES-256-CBC Decryption and HMAC-SHA256 tampering checksum matching
@@ -31,7 +34,7 @@ export default function ApiIntegrationHub({ settings }: ApiIntegrationHubProps) 
 #pragma comment(lib, "libcrypto.lib")
 
 // System Master Secret - keep hidden / virtualized using VMProtect or Themida
-const std::string MASTER_SECRET = "SUPER_SECURE_RAINBOW_NEON_SECRET_UUID_STRING";
+const std::string MASTER_SECRET = "RAINBOW_SECURE_KEY_b8d3f1a26d9c4e7fb60718293c4e5a6f2b1d0c4d8e7a6f5b3c2e1d0f5c9e1b2a";
 
 std::string GetHardwareID() {
     HW_PROFILE_INFO hwProfileInfo;
@@ -102,7 +105,7 @@ import hashlib
 import base64
 from Crypto.Cipher import AES
 
-MASTER_SECRET = b"SUPER_SECURE_RAINBOW_NEON_SECRET_UUID_STRING"
+MASTER_SECRET = b"RAINBOW_SECURE_KEY_b8d3f1a26d9c4e7fb60718293c4e5a6f2b1d0c4d8e7a6f5b3c2e1d0f5c9e1b2a"
 
 def decrypt_secure_payload(base64_payload, license_key):
     # Derive unique AES-256 key matching Server key-derivations

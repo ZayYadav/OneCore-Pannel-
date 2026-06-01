@@ -43,7 +43,7 @@ class JWTAuthFilter implements FilterInterface
         }
 
         try {
-            $secretKey = env('JWT_SECRET_KEY', 'SUPER_SECURE_RAINBOW_NEON_SECRET_UUID_STRING');
+            $secretKey = env('JWT_SECRET_KEY', 'RAINBOW_SECURE_KEY_b8d3f1a26d9c4e7fb60718293c4e5a6f2b1d0c4d8e7a6f5b3c2e1d0f5c9e1b2a');
             $decoded = JWT::decode($token, new Key($secretKey, 'HS256'));
             
             // Attach decoded metadata to request registry
