@@ -21,6 +21,7 @@ import SettingsPanel from './components/SettingsPanel';
 import ReferralPanel from './components/ReferralPanel';
 import ApiIntegrationHub from './components/ApiIntegrationHub';
 import SourceConnector from './components/SourceConnector';
+import ErrorLogConsole from './components/ErrorLogConsole';
 
 // Import design icons
 import {
@@ -48,6 +49,7 @@ import {
   Shield,
   CheckCircle,
   Megaphone,
+  Terminal,
   Settings as SettingsIcon
 } from 'lucide-react';
 
@@ -388,10 +390,11 @@ export default function App() {
       });
 
       raw.forEach(item => {
+        const creatorName = (item.name || 'Unknown') as string;
         breakdown.push({
-          name: item.name,
+          name: creatorName,
           keysCount: item.keysCount,
-          label: `${item.name} (${item.keysCount} keys)`,
+          label: `${creatorName} (${item.keysCount} keys)`,
           percentage: totalKeysCount > 0 ? (item.keysCount / totalKeysCount) * 100 : 0
         });
       });
@@ -1122,6 +1125,19 @@ export default function App() {
           >
             <MessageSquare className="w-3.5 h-3.5" />
             <span>Support</span>
+          </button>
+
+          <button
+            id="btn-header-logs"
+            onClick={() => setActiveTab('logs')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              activeTab === 'logs' 
+                ? 'bg-[#1b0f35]/80 text-red-400 border border-red-500/20 shadow-[0_0_12px_rgba(239,68,68,0.15)]' 
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.02]'
+            }`}
+          >
+            <Terminal className="w-3.5 h-3.5" />
+            <span>System Logs</span>
           </button>
 
           {sessionUser.role !== 'reseller' && (
@@ -1861,6 +1877,13 @@ export default function App() {
           {/* TAB 9: SECURE INTERACTIVE API GATEWAY DOCS */}
           {activeTab === 'api-docs' && (
             <ApiIntegrationHub settings={settings} />
+          )}
+
+          {/* TAB 10: REAL-TIME ERROR LOGGER & EXCEPTION TRACER */}
+          {activeTab === 'logs' && (
+            <ErrorLogConsole onAddAuditLog={(action, category, status) => {
+              triggerSecurityLog(action, category, status);
+            }} />
           )}
 
           {/* TAB 4: WALLET TRANSACTIONS DIRECTORY */}
