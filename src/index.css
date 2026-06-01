@@ -1,0 +1,183 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Base Body defaults - Pitch Black Background & Crisp Typography */
+body {
+  background-color: #030008;
+  color: #f8fafc;
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  letter-spacing: -0.01em;
+}
+
+/* Custom premium scrollbars to maintain neon palette values */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(3, 0, 8, 0.95);
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.3), rgba(236, 72, 153, 0.3));
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.6), rgba(236, 72, 153, 0.6));
+}
+
+/* High-contrast Glassmorphism Theme Classes with subtle drop-shadow */
+.glass {
+  background: rgba(10, 6, 18, 0.45) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  border-radius: 16px;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass:hover {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+/* Vibrant Ambient Light Emitter Backdrop */
+.rainbow-glow {
+  position: absolute;
+  top: -150px;
+  left: -150px;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.25) 0%, rgba(236, 72, 153, 0.2) 30%, rgba(59, 130, 246, 0.15) 75%, transparent 100%);
+  filter: blur(120px);
+  opacity: 0.25;
+  pointer-events: none;
+  z-index: 0;
+  animation: floatGlow 12s infinite alternate ease-in-out;
+}
+
+/* Pulse Animation for Ambient Backdrop */
+@keyframes floatGlow {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(40px, 20px) scale(1.15); }
+}
+
+/* Animated Flowing Rainbow Border class */
+.rainbow-border {
+  position: relative;
+  background-clip: padding-box;
+}
+
+.rainbow-border::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2.5px;
+  background: linear-gradient(90deg, #a855f7, #ec4899, #3b82f6, #06b6d4, #a855f7);
+  background-size: 400% 100%;
+  border-radius: 2px 2px 0 0;
+  z-index: 10;
+  animation: rainbowFlow 8s linear infinite;
+}
+
+@keyframes rainbowFlow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 400% 50%; }
+}
+
+/* Neon Text Accents with custom high-vibrancy glowing dropshadows */
+.neon-text-purple {
+  color: #c084fc;
+  text-shadow: 0 0 12px rgba(168, 85, 247, 0.5), 0 0 2px rgba(168, 85, 247, 0.8);
+}
+
+.neon-text-blue {
+  color: #60a5fa;
+  text-shadow: 0 0 12px rgba(59, 130, 246, 0.5), 0 0 2px rgba(59, 130, 246, 0.8);
+}
+
+.neon-text-pink {
+  color: #f472b6;
+  text-shadow: 0 0 12px rgba(236, 72, 153, 0.5), 0 0 2px rgba(236, 72, 153, 0.8);
+}
+
+/* Active buttons selection indicator glow */
+.btn-neon-purple {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-neon-purple:hover {
+  background: rgba(168, 85, 247, 0.12) !important;
+  border-color: rgba(168, 85, 247, 0.4) !important;
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.25);
+  transform: translateY(-1px);
+}
+
+.btn-neon-pink {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-neon-pink:hover {
+  background: rgba(236, 72, 153, 0.12) !important;
+  border-color: rgba(236, 72, 153, 0.4) !important;
+  box-shadow: 0 0 20px rgba(236, 72, 153, 0.25);
+  transform: translateY(-1px);
+}
+
+.btn-neon-blue {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-neon-blue:hover {
+  background: rgba(59, 130, 246, 0.12) !important;
+  border-color: rgba(59, 130, 246, 0.4) !important;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.25);
+  transform: translateY(-1px);
+}
+
+/* Premium Forms Layout Styling Overrides */
+input, select, textarea {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  color: #f1f5f9 !important;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: rgba(236, 72, 153, 0.5) !important;
+  box-shadow: 0 0 15px rgba(236, 72, 153, 0.2) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  outline: none !important;
+}
+
+/* Sidebar Animation / Smooth Slide transitions */
+.sidebar-transition {
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Universal Soft Glass Fallback Styling to ensure 100% theme coverage */
+div[class*="bg-slate-900"],
+div[class*="bg-slate-950"],
+aside[class*="bg-slate-950"],
+header[class*="bg-slate-950"],
+form[class*="bg-slate-900"],
+table[class*="bg-slate-900"] {
+  background: rgba(10, 6, 18, 0.6) !important;
+  backdrop-filter: blur(18px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(140%) !important;
+  border-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+/* Soft transition triggers */
+* {
+  transition-property: background-color, border-color, text-decoration-color, fill, stroke;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+
